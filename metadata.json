@@ -1,0 +1,6 @@
+{
+  "name": "Veklom ID",
+  "description": "Sovereign Operator Registry trust primitive and Base wallet integration. Manage Operator identity cards, trust scores, streak mechanics, and EIP-5792 contract write batching simulations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
