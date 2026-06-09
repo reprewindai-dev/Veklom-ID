@@ -4,6 +4,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import identityRouter from "./src/identity/routes";
+import x402Router from "./src/identity/x402";
 
 dotenv.config();
 
@@ -16,6 +17,7 @@ async function startServer() {
   // Mount Veklom ID Identity Router
   app.use("/api/v1/identity", identityRouter);
   app.use("/api/v1/internal/identity", identityRouter);
+  app.use("/api/v1/x402", x402Router);
 
   // API Endpoint for Agent response generation
   app.post("/api/agents/simulate-turn", async (req, res) => {
