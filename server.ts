@@ -14,9 +14,29 @@ async function startServer() {
 
   app.use(express.json());
 
+  // x402 Base.org Enforcement Middleware
+  const requirePayment = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (req.method === 'OPTIONS') return next();
+    if (!req.headers['x-payment']) {
+      res.setHeader('X-Payment-Required', 'true');
+      res.setHeader('X-Payment-Price-USDC', '0.005');
+      res.setHeader('X-Payment-Address', '0x3a74772e925b54F7dAD7FD95c9Ba30825033f970');
+      return res.status(402).json({
+        error: "payment_required",
+        x402_version: "1.0.0",
+        amount: 5000,
+        currency: "USDC",
+        network: "base-mainnet",
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        pay_to: "0x3a74772e925b54F7dAD7FD95c9Ba30825033f970"
+      });
+    }
+    next();
+  };
+
   // Mount Veklom ID Identity Router
-  app.use("/api/v1/identity", identityRouter);
-  app.use("/api/v1/internal/identity", identityRouter);
+  app.use("/api/v1/identity", requirePayment, identityRouter);
+  app.use("/api/v1/internal/identity", requirePayment, identityRouter);
   app.use("/api/v1/x402", x402Router);
 
   // x402 Discovery & Veklom ID

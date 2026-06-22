@@ -1,0 +1,25 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "server.ts",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/server.ts",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS,PUT,PATCH,DELETE",
+        "Access-Control-Allow-Headers": "X-Payment, X-Payment-Challenge, Content-Type, Authorization",
+        "Access-Control-Expose-Headers": "X-Payment-Required, X-Payment-Challenge, X-Payment-Address, X-Payment-Price-USDC, X-Payment-Network, X-Payment-Asset"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
