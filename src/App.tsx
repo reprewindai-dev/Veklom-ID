@@ -1115,6 +1115,96 @@ export default function App() {
                     </div>
                   </div>
 
+                  {/* Operational Achievements Section */}
+                  <div className="my-5 pt-4 border-t border-zinc-800/60 font-mono">
+                    <span className="text-[10px] uppercase text-zinc-500 tracking-wider block mb-2.5 font-bold">OPERATIONAL DECORATIONS</span>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {/* Achievement 1: Early Adopter */}
+                      <div className="relative flex items-center gap-2.5 p-2 rounded-lg bg-zinc-950/40 border border-indigo-500/20 overflow-hidden group hover:bg-zinc-950/70 transition duration-200">
+                        <div className="absolute inset-0 bg-indigo-500/5 opacity-40 blur-sm pointer-events-none" />
+                        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded bg-indigo-500/10 border border-indigo-500/30 text-indigo-400">
+                          <Crown className="h-4 w-4 text-indigo-300" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-bold text-zinc-200 leading-tight">Early Adopter</div>
+                          <div className="text-[8.5px] text-zinc-400 truncate">Genesis Operator</div>
+                        </div>
+                      </div>
+
+                      {/* Achievement 2: High Fidelity Operator */}
+                      <div className={`relative flex items-center gap-2.5 p-2 rounded-lg transition duration-200 group overflow-hidden ${
+                        agentCard && agentCard.trust_score >= 300 
+                          ? 'bg-zinc-950/40 border border-emerald-500/30 hover:bg-zinc-950/70' 
+                          : 'bg-zinc-950/25 border border-zinc-900 opacity-50'
+                      }`}>
+                        {agentCard && agentCard.trust_score >= 300 && (
+                          <div className="absolute inset-0 bg-emerald-500/5 opacity-40 blur-sm pointer-events-none" />
+                        )}
+                        <div className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded border ${
+                          agentCard && agentCard.trust_score >= 300 
+                            ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold' 
+                            : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+                        }`}>
+                          <ShieldCheck className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0 font-mono">
+                          <div className="text-[10px] font-bold text-zinc-200 leading-tight">High Fidelity</div>
+                          <div className="text-[8.5px] text-zinc-400 truncate">
+                            {agentCard && agentCard.trust_score >= 300 ? 'Score Over 300' : 'Req: 300+ Trust'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Achievement 3: Consensus Guardian */}
+                      <div className={`relative flex items-center gap-2.5 p-2 rounded-lg transition duration-200 group overflow-hidden ${
+                        agentCard && agentCard.governance_proofs_generated >= 1 
+                          ? 'bg-zinc-950/40 border border-purple-500/30 hover:bg-zinc-950/70' 
+                          : 'bg-zinc-950/25 border border-zinc-900 opacity-50'
+                      }`}>
+                        {agentCard && agentCard.governance_proofs_generated >= 1 && (
+                          <div className="absolute inset-0 bg-purple-500/5 opacity-40 blur-sm pointer-events-none" />
+                        )}
+                        <div className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded border ${
+                          agentCard && agentCard.governance_proofs_generated >= 1 
+                            ? 'bg-purple-500/10 border border-purple-500/30 text-purple-400 font-bold' 
+                            : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+                        }`}>
+                          <Trophy className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0 font-mono">
+                          <div className="text-[10px] font-bold text-zinc-200 leading-tight">Consensus</div>
+                          <div className="text-[8.5px] text-zinc-400 truncate">
+                            {agentCard && agentCard.governance_proofs_generated >= 1 ? 'Proof Generated' : 'Req: 1+ Gov Proof'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Achievement 4: Autonomous Operator */}
+                      <div className={`relative flex items-center gap-2.5 p-2 rounded-lg transition duration-200 group overflow-hidden ${
+                        agentCard && agentCard.successful_agent_runs >= 1 
+                          ? 'bg-zinc-950/40 border border-amber-500/30 hover:bg-zinc-950/70' 
+                          : 'bg-zinc-950/25 border border-zinc-900 opacity-50'
+                      }`}>
+                        {agentCard && agentCard.successful_agent_runs >= 1 && (
+                          <div className="absolute inset-0 bg-amber-500/5 opacity-40 blur-sm pointer-events-none" />
+                        )}
+                        <div className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded border ${
+                          agentCard && agentCard.successful_agent_runs >= 1 
+                            ? 'bg-amber-500/10 border border-amber-500/30 text-amber-500 font-bold' 
+                            : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+                        }`}>
+                          <Cpu className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0 font-mono">
+                          <div className="text-[10px] font-bold text-zinc-200 leading-tight">Cognitive Pilot</div>
+                          <div className="text-[8.5px] text-zinc-400 truncate">
+                            {agentCard && agentCard.successful_agent_runs >= 1 ? 'Agent Sync Active' : 'Req: 1+ Agent Run'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Operator ID Info */}
                   <div className="space-y-3.5 font-mono text-xs">
                     <div className="flex justify-between">

@@ -14,57 +14,10 @@ async function startServer() {
 
   app.use(express.json());
 
-  // x402 Base.org Enforcement Middleware
-  const requirePayment = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (req.method === 'OPTIONS') return next();
-    if (!req.headers['x-payment']) {
-      res.setHeader('X-Payment-Required', 'true');
-      res.setHeader('X-Payment-Price-USDC', '0.005');
-      res.setHeader('X-Payment-Address', '0x3a74772e925b54F7dAD7FD95c9Ba30825033f970');
-      return res.status(402).json({
-        error: "payment_required",
-        x402_version: "1.0.0",
-        amount: 5000,
-        currency: "USDC",
-        network: "base-mainnet",
-        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        pay_to: "0x3a74772e925b54F7dAD7FD95c9Ba30825033f970"
-      });
-    }
-    next();
-  };
-
   // Mount Veklom ID Identity Router
-  app.use("/api/v1/identity", requirePayment, identityRouter);
-  app.use("/api/v1/internal/identity", requirePayment, identityRouter);
+  app.use("/api/v1/identity", identityRouter);
+  app.use("/api/v1/internal/identity", identityRouter);
   app.use("/api/v1/x402", x402Router);
-
-  // x402 Discovery & Veklom ID
-  app.get("/.well-known/x402.json", (_req, res) => {
-    res.json({
-      x402_version: 2,
-      provider: "Veklom ID — Sovereign Operator Registry",
-      network: "eip155:8453",
-      payTo: "0xCC34553b4e6332ffb9C1b61E22436ACA53113D1d",
-      currency: "USDC",
-      identity: {
-        veklom_id_app: "6a20f24cc341f72c2f573eb5",
-        veklom_id_wallet: "0x3a74772e925b54F7dAD7FD95c9Ba30825033f970",
-        verification_domain: "veklom-id.vercel.app",
-      },
-      routes: [
-        { route: "GET /api/v1/x402/identity/premium", price: "$0.01", description: "Full identity card for the paying wallet — trust score, operator stats, rank.", tags: ["veklom-id", "identity", "premium", "trust", "veklom"] },
-        { route: "POST /api/v1/x402/benchmark/run", price: "$0.05", description: "Trigger a benchmark run authenticated by wallet + payment.", tags: ["veklom-id", "benchmark", "run", "veklom"] },
-        { route: "POST /api/v1/x402/discovery/feature", price: "$0.02", description: "Unlock a paid Discovery feature for the paying wallet.", tags: ["veklom-id", "discovery", "feature", "veklom"] },
-        { route: "GET /api/v1/x402/config", price: "free", description: "x402 merchant and payment configuration.", tags: ["veklom-id", "x402", "config"] },
-        { route: "GET /api/v1/x402/ledger", price: "free", description: "All verified x402 payment events.", tags: ["veklom-id", "x402", "ledger", "audit"] },
-      ],
-      discovery: {
-        bazaar: "https://bazaar.cdp.coinbase.com",
-        veklom_id: "https://veklom-id.vercel.app",
-      },
-    });
-  });
 
   // API Endpoint for Agent response generation
   app.post("/api/agents/simulate-turn", async (req, res) => {
