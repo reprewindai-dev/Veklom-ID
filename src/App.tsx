@@ -28,9 +28,11 @@ import {
   Trophy,
   Cpu,
   Gift,
-  Crown,
-  Target
+  MoreVertical,
+  Crosshair
 } from "lucide-react";
+import ReactMarkdown from 'react-markdown';
+import { useAccount, useConnect, useDisconnect } from 'wagmi';
 
 // Types corresponding to the backend definitions
 export interface AgentCard {
@@ -111,10 +113,25 @@ export default function App() {
   const [mathVerified, setMathVerified] = useState<boolean>(false);
 
   // ====== BASE SMART WALLET & EIP-5792 BATCH SIMULATOR STATES ======
-  const [walletType, setWalletType] = useState<"smart" | "eoa">("smart");
-  const [walletConnected, setWalletConnected] = useState<boolean>(false);
-  const [walletConnecting, setWalletConnecting] = useState<boolean>(false);
+  const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
+  const { connectors, connect, isPending: isConnectingWagmi } = useConnect();
+  const { disconnect: wagmiDisconnect } = useDisconnect();
+
+  const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [walletConnecting, setWalletConnecting] = useState(false);
+  
+  useEffect(() => {
+    if (wagmiConnected && wagmiAddress) {
+      setWalletConnected(true);
+      setWalletAddress(wagmiAddress);
+      triggerToast(`Wallet connected`, "success");
+      linkWalletAddressToBackend(wagmiAddress);
+    } else {
+      setWalletConnected(false);
+      setWalletAddress(null);
+    }
+  }, [wagmiConnected, wagmiAddress]);
   
   // Real-time onchain read/write states
   const [counterValue, setCounterValue] = useState<number>(42);
@@ -669,22 +686,12 @@ export default function App() {
   };
 
   // Connect simulated Base wallet
-  const handleConnectWallet = (type: "smart" | "eoa") => {
+  const handleConnectWallet = (connector: any) => {
     setWalletConnecting(true);
-    setWalletType(type);
+    connect({ connector });
     setTimeout(() => {
-      const mockAddress = type === "smart" 
-        ? "0x3b8901F82743DDeF2b28F3D1BFf781f33Cd66D4e8" // Veklom Smart Account
-        : "0x71C7656EC7ab88b098defB751B7401B5f6d1476B"; // Legacy EOA
-      
-      setWalletAddress(mockAddress);
-      setWalletConnected(true);
       setWalletConnecting(false);
-      triggerToast(`Wallet connected via ${type === "smart" ? "Base Account SDK (Smart Wallet)" : "Browser Extension (EOA)"}`, "success");
-
-      // Auto link connected wallet with Active node cards!
-      linkWalletAddressToBackend(mockAddress);
-    }, 1200);
+    }, 1000);
   };
 
   const linkWalletAddressToBackend = async (address: string) => {
@@ -710,8 +717,7 @@ export default function App() {
   };
 
   const handleDisconnectWallet = () => {
-    setWalletAddress(null);
-    setWalletConnected(false);
+    wagmiDisconnect();
     triggerToast("Wallet disconnected.", "info");
   };
 
@@ -1545,44 +1551,23 @@ export default function App() {
 
                   {!walletConnected ? (
                     <div className="space-y-4">
-                      
-                      <button 
-                        onClick={() => handleConnectWallet("smart")}
-                        disabled={walletConnecting}
-                        className="w-full flex items-center justify-between bg-gradient-to-r from-blue-700 to-indigo-600 hover:from-blue-650 hover:to-indigo-550 border border-blue-600 p-4 rounded-xl text-white font-mono transition text-xs cursor-pointer text-left"
-                      >
-                        <div>
-                          <div className="font-bold flex items-center gap-1.5">
-                            <Sparkles className="h-3.5 w-3.5" />
-                            Base Account (Smart Wallet)
+                      {connectors.map((connector) => (
+                        <button 
+                          key={connector.uid}
+                          onClick={() => handleConnectWallet(connector)}
+                          disabled={walletConnecting || isConnectingWagmi}
+                          className="w-full flex items-center justify-between bg-gradient-to-r from-blue-700 to-indigo-600 hover:from-blue-650 hover:to-indigo-550 border border-blue-600 p-4 rounded-xl text-white font-mono transition text-xs cursor-pointer text-left"
+                        >
+                          <div>
+                            <div className="font-bold flex items-center gap-1.5">
+                              <Sparkles className="h-3.5 w-3.5" />
+                              Connect {connector.name}
+                            </div>
+                            <div className="text-[10px] text-blue-200 mt-1 font-sans">Connect securely with your wallet</div>
                           </div>
-                          <div className="text-[10px] text-blue-200 mt-1 font-sans">Supports EIP-5792 Batching &amp; Spend Sponsorship</div>
-                        </div>
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-
-                      <button 
-                        onClick={() => handleConnectWallet("eoa")}
-                        disabled={walletConnecting}
-                        className="w-full flex items-center justify-between bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 p-4 rounded-xl text-zinc-300 font-mono transition text-xs cursor-pointer text-left"
-                      >
-                        <div>
-                          <div className="font-bold flex items-center gap-1.5">
-                            <Coins className="h-3.5 w-3.5 text-zinc-400" />
-                            Classic EOA Browser Extension
-                          </div>
-                          <div className="text-[10px] text-zinc-500 mt-1 font-sans">Metamask/Coinbase Browser. Sequential Fallback</div>
-                        </div>
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-
-                      {walletConnecting && (
-                        <div className="text-center py-2 font-mono text-xs text-blue-400 flex items-center justify-center gap-2">
-                          <RefreshCcw className="h-3.5 w-3.5 animate-spin" />
-                          Reading injected provider attributes...
-                        </div>
-                      )}
-
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      ))}
                     </div>
                   ) : (
                     <div className="space-y-4">
