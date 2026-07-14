@@ -247,14 +247,6 @@ export function runVeklomIdentityTests(): TestResult[] {
 // Support executing from the CLI directly in Node.js ESM mode
 import { fileURLToPath } from "url";
 const isMainModule = () => {
-  try {
-    if (typeof require !== "undefined" && require.main === module) return true;
-    if (process.argv[1]) {
-      const mainPath = fs.realpathSync(process.argv[1]);
-      const thisPath = fs.realpathSync(fileURLToPath(import.meta.url));
-      return mainPath === thisPath;
-    }
-  } catch {}
   return false;
 };
 
