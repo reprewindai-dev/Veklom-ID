@@ -29,7 +29,9 @@ import {
   Cpu,
   Gift,
   MoreVertical,
-  Crosshair
+  Crosshair,
+  Crown,
+  Target
 } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
@@ -117,14 +119,26 @@ export default function App() {
   const { connectors, connect, isPending: isConnectingWagmi } = useConnect();
   const { disconnect: wagmiDisconnect } = useDisconnect();
 
+  const coinbaseConnector = connectors.find(
+    (c) => c.id === "coinbaseWallet" || c.id === "coinbaseWalletSDK" || c.name.toLowerCase().includes("coinbase")
+  );
+  const otherConnectors = connectors.filter((c) => c.uid !== coinbaseConnector?.uid);
+
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [walletConnecting, setWalletConnecting] = useState(false);
+  const [walletType, setWalletType] = useState<"smart" | "eoa">("smart");
   
   useEffect(() => {
     if (wagmiConnected && wagmiAddress) {
       setWalletConnected(true);
       setWalletAddress(wagmiAddress);
+      const activeConnector = connectors.find(c => c.id === "coinbaseWallet" || c.id === "coinbaseWalletSDK");
+      if (activeConnector) {
+        setWalletType("smart");
+      } else {
+        setWalletType("eoa");
+      }
       triggerToast(`Wallet connected`, "success");
       linkWalletAddressToBackend(wagmiAddress);
     } else {
@@ -1551,23 +1565,45 @@ export default function App() {
 
                   {!walletConnected ? (
                     <div className="space-y-4">
-                      {connectors.map((connector) => (
+                      {coinbaseConnector ? (
                         <button 
-                          key={connector.uid}
-                          onClick={() => handleConnectWallet(connector)}
+                          onClick={() => handleConnectWallet(coinbaseConnector)}
                           disabled={walletConnecting || isConnectingWagmi}
-                          className="w-full flex items-center justify-between bg-gradient-to-r from-blue-700 to-indigo-600 hover:from-blue-650 hover:to-indigo-550 border border-blue-600 p-4 rounded-xl text-white font-mono transition text-xs cursor-pointer text-left"
+                          className="w-full flex items-center justify-between bg-gradient-to-r from-blue-700 to-indigo-600 hover:from-blue-650 hover:to-indigo-550 border border-blue-600 p-4 rounded-xl text-white font-mono transition text-xs cursor-pointer text-left brand-glow"
                         >
                           <div>
                             <div className="font-bold flex items-center gap-1.5">
                               <Sparkles className="h-3.5 w-3.5" />
-                              Connect {connector.name}
+                              Connect Base Smart Wallet
                             </div>
-                            <div className="text-[10px] text-blue-200 mt-1 font-sans">Connect securely with your wallet</div>
+                            <div className="text-[10px] text-blue-200 mt-1 font-sans">Instant secure login with Coinbase Smart Wallet</div>
                           </div>
                           <ChevronRight className="h-4 w-4" />
                         </button>
-                      ))}
+                      ) : (
+                        <div className="text-xs text-rose-400 font-mono">Coinbase Wallet connector not found. Check configuration.</div>
+                      )}
+
+                      {otherConnectors.length > 0 && (
+                        <details className="text-zinc-500 font-mono text-[10px]">
+                          <summary className="cursor-pointer hover:text-zinc-300 py-1 transition select-none">
+                            Other Connection Options
+                          </summary>
+                          <div className="space-y-2 mt-2 pt-2 border-t border-zinc-900">
+                            {otherConnectors.map((connector) => (
+                              <button
+                                key={connector.uid}
+                                onClick={() => handleConnectWallet(connector)}
+                                disabled={walletConnecting || isConnectingWagmi}
+                                className="w-full flex items-center justify-between bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 p-3 rounded-lg text-zinc-300 transition text-[11px] cursor-pointer text-left"
+                              >
+                                <span>{connector.name}</span>
+                                <ChevronRight className="h-3 w-3" />
+                              </button>
+                            ))}
+                          </div>
+                        </details>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-4">

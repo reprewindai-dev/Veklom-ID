@@ -11,6 +11,7 @@ const walletConnectors =
     : [
         coinbaseWallet({
           appName: "Veklom ID",
+          preference: { options: "smartWalletOnly" },
         }),
         injected({
           target: "metaMask",
