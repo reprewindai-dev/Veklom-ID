@@ -80,7 +80,6 @@ interface TestResult {
   message?: string;
 }
 
-const DEFAULT_SERVICE_TOKEN = "veklom_secure_service_token_2026";
 
 export default function App() {
   // Navigation Tabs: Sovereign Registry vs smart wallet playground
@@ -489,36 +488,14 @@ export default function App() {
   const fetchActiveOperator = async () => {
     setCardLoading(true);
     try {
-      const response = await fetch("/api/v1/identity/me", {
-        headers: {
-          "x-user-id": activeOperatorUserId
-        }
-      });
+      const response = await fetch("/api/v1/identity/me");
       if (!response.ok) throw new Error("Can't resolve operator node card.");
       const data = await response.json();
       if (data.success && data.card) {
         setAgentCard(data.card);
+        setActiveOperatorUserId(data.card.owner_user_id);
         setCustomOperatorName(data.card.display_name);
-        
-        // Also fetch events list from DB file directly to display ledger
-        const eventsResponse = await fetch("/api/v1/identity/test-run");
-        const eventsData = await eventsResponse.json();
-        if (eventsData.success) {
-          // Filter chronologically for this card's registered occurrences
-          const cardEvents = (eventsData.results || [])
-            .flatMap((r: any) => r.results || [])
-            .filter(() => true); // fallback mock search or backend score details loop
-
-          // Let's directly pull the JSON DB file list by mapping events
-          const rawEventsRes = await fetch("/api/v1/identity/me", {
-            headers: { "x-user-id": activeOperatorUserId }
-          });
-          // Since our node route parses the events into JSON internally, let's keep them in state.
-          // Let's call the test-run helper to get standard events or trigger recalculation
-        }
-        
-        // Fetch all raw history
-        recalculateAndPullLogs(data.card.id);
+        await recalculateAndPullLogs();
       }
     } catch (err: any) {
       console.error(err);
@@ -528,31 +505,12 @@ export default function App() {
     }
   };
 
-  const recalculateAndPullLogs = async (cardId: string) => {
+  const recalculateAndPullLogs = async () => {
     try {
-      // Ingest recent log recalculation response to populate events array safely
-      // Let's trigger a test event or read from public score to pull counters
-      const res = await fetch("/api/v1/internal/identity/events", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-internal-token": DEFAULT_SERVICE_TOKEN
-        },
-        body: JSON.stringify({
-          agent_card_id: cardId,
-          event_type: "completed_daily_mission",
-          points_delta: 0, // 0 delta serves as custom heart-beat read trigger!
-          reason: "Database query verification baseline"
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.card) {
-          setAgentCard(data.card);
-          if (data.breakdown && data.breakdown.applied_events) {
-            setEvents(data.breakdown.applied_events);
-          }
-        }
+      const res = await fetch("/api/v1/identity/events");
+      const data = await res.json();
+      if (data.success && Array.isArray(data.events)) {
+        setEvents(data.events);
       }
     } catch {}
   };
@@ -572,43 +530,25 @@ export default function App() {
       const response = await fetch("/api/v1/identity/link-wallet", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "x-user-id": activeOperatorUserId
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          wallet_address: agentCard?.wallet_address,
+          ...(agentCard?.wallet_address ? { wallet_address: agentCard.wallet_address } : {}),
           display_name: customOperatorName
         })
       });
 
-      // Quick internal display name patch directly
-      if (agentCard) {
-        // Manually update name in backend via simple simulation event
-        const mockNameRes = await fetch("/api/v1/internal/identity/events", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-internal-token": DEFAULT_SERVICE_TOKEN
-          },
-          body: JSON.stringify({
-            agent_card_id: agentCard.id,
-            event_type: "verified_action",
-            points_delta: 0, 
-            reason: `Operator display name synchronized to: '${customOperatorName}'`
-          })
-        });
-
-        if (mockNameRes.ok) {
-          const resData = await mockNameRes.json();
-          setAgentCard({
-            ...resData.card,
-            display_name: customOperatorName
-          });
-          triggerToast(`Sovereign operator tag updated to: ${customOperatorName}`, "success");
-        }
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to update operator profile.");
       }
+
+      const data = await response.json();
+      setAgentCard(data.card);
+      setCustomOperatorName(data.card.display_name);
+      triggerToast(`Sovereign operator tag updated to: ${customOperatorName}`, "success");
     } catch (err: any) {
-      triggerToast("Failed to write to identity registry.", "error");
+      triggerToast(err.message || "Failed to write to identity registry.", "error");
     } finally {
       setIsUpdatingName(false);
     }
@@ -619,21 +559,16 @@ export default function App() {
     if (!agentCard) return;
     setIsSubmittingEvent(true);
     try {
-      const overridePoints = customPointsDelta ? parseInt(customPointsDelta) : undefined;
-      
-      const response = await fetch("/api/v1/internal/identity/events", {
+      const response = await fetch("/api/v1/identity/events", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "x-internal-token": DEFAULT_SERVICE_TOKEN
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          agent_card_id: agentCard.id,
           event_type: selectedEventType,
-          points_delta: overridePoints,
           reason: eventReasonInput,
-          evidence_hash: "0x" + Math.random().toString(16).substr(2, 12) + "ade72026af82901c",
-          tx_hash: "0x742d" + Math.random().toString(16).substr(2, 10) + "00f8"
+          evidence_hash: "0x" + Math.random().toString(16).substring(2, 12) + "ade72026af82901c",
+          tx_hash: "0x742d" + Math.random().toString(16).substring(2, 10) + "00f8"
         })
       });
 
@@ -714,8 +649,7 @@ export default function App() {
       const res = await fetch("/api/v1/identity/link-wallet", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "x-user-id": activeOperatorUserId
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           wallet_address: address
@@ -724,7 +658,6 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setAgentCard(data.card);
-        // Refresh lookup helper to pre-fill active links
         setLookupAddress(address);
       }
     } catch {}
@@ -761,19 +694,17 @@ export default function App() {
         // publishes a Verified Action event to our deterministic Trust Score backend!
         if (agentCard) {
           try {
-            await fetch("/api/v1/internal/identity/events", {
+            await fetch("/api/v1/identity/events", {
               method: "POST",
               headers: {
-                "Content-Type": "application/json",
-                "x-internal-token": DEFAULT_SERVICE_TOKEN
+                "Content-Type": "application/json"
               },
               body: JSON.stringify({
                 agent_card_id: agentCard.id,
                 event_type: "verified_action",
-                points_delta: 10,
                 reason: `Completed Base Sepolia Increment: ${batch ? 'Batch atomic write (EIP-5792)' : 'Standard write'} (tx receipt verified)`,
                 tx_hash: hash,
-                evidence_hash: "0x88bb" + Math.random().toString(16).substr(2, 10)
+                evidence_hash: "0x88bb" + Math.random().toString(16).substring(2, 10)
               })
             });
             // Reload card & state log

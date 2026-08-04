@@ -10,16 +10,22 @@ dotenv.config();
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3014;
 
-  app.use(express.json());
+  app.disable("x-powered-by");
+  app.set("trust proxy", 1);
+  app.use(express.json({ limit: "1mb" }));
+  app.use((req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    next();
+  });
 
-  // Mount Veklom ID Identity Router
   app.use("/api/v1/identity", identityRouter);
   app.use("/api/v1/internal/identity", identityRouter);
   app.use("/api/v1/x402", x402Router);
 
-  // API Endpoint for Agent response generation
   app.post("/api/agents/simulate-turn", async (req, res) => {
     try {
       const { agent, task, history, mode } = req.body;
@@ -39,12 +45,11 @@ async function startServer() {
         apiKey: apiKey,
         httpOptions: {
           headers: {
-            'User-Agent': 'aistudio-build',
+            "User-Agent": "aistudio-build",
           }
         }
       });
 
-      // Construct contextual task and conversation history
       let contextualPrompt = "";
       if (mode === "pipeline") {
         contextualPrompt += `We are carrying out a structured hand-off pipeline to solve the task: "${task}".\n\n`;
@@ -63,10 +68,9 @@ async function startServer() {
         contextualPrompt += "No dialogue has occurred yet. You are starting the conversation.\n\n";
       }
 
-      contextualPrompt += `Now, write your response as agent "${agent.name}" (Role: ${agent.role || 'Contributor'}).\n`;
+      contextualPrompt += `Now, write your response as agent "${agent.name}" (Role: ${agent.role || 'Contributor'}).`;
       contextualPrompt += `Address the topic "${task}" and respond constructively to previous points (if any). Do not prefix your reply with your name or any label like "[${agent.name}]:". Deliver your response in formatted Markdown if appropriate.`;
 
-      // Configure system instructions for agent personality/specialty
       const systemInstruction = `You are playing the role of an AI Agent named "${agent.name}".
 Your professional specialty or persona role is: "${agent.role || 'Expert'}".
 Your core system instructions and behavioral attributes are:
@@ -95,7 +99,6 @@ CRITICAL RULES:
     }
   });
 
-  // Vite development middleware vs Static Production bundle serving
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -103,10 +106,10 @@ CRITICAL RULES:
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
     });
   }
 

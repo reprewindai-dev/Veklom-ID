@@ -28,12 +28,13 @@ class IdentityDb {
     try {
       if (fs.existsSync(DB_FILE_PATH)) {
         const fileContent = fs.readFileSync(DB_FILE_PATH, "utf-8");
-        this.data = JSON.parse(fileContent);
-        // Guarantee arrays exist
-        if (!this.data.agentCards) this.data.agentCards = [];
-        if (!this.data.events) this.data.events = [];
+        const parsed = JSON.parse(fileContent) as Partial<DbSchema>;
+        this.data = {
+          agentCards: Array.isArray(parsed.agentCards) ? parsed.agentCards : [],
+          events: Array.isArray(parsed.events) ? parsed.events : [],
+        };
       } else {
-        this.save(); // write default empty schema to file
+        this.save();
       }
     } catch (err) {
       console.error("Error reading Veklom Identity DB file. Initializing empty collection.", err);
@@ -42,11 +43,13 @@ class IdentityDb {
   }
 
   /**
-   * Persists DB changes to disk.
+   * Persists DB changes to disk atomically.
    */
   private save() {
     try {
-      fs.writeFileSync(DB_FILE_PATH, JSON.stringify(this.data, null, 2), "utf-8");
+      const tmpPath = `${DB_FILE_PATH}.tmp`;
+      fs.writeFileSync(tmpPath, JSON.stringify(this.data, null, 2), "utf-8");
+      fs.renameSync(tmpPath, DB_FILE_PATH);
     } catch (err) {
       console.error("Error writing Veklom Identity DB file:", err);
     }
@@ -124,12 +127,32 @@ class IdentityDb {
   }
 
   /**
+   * Updates a card profile safely.
+   */
+  public updateCardProfile(cardId: string, updates: { display_name?: string; wallet_address?: string | null }): AgentCard | null {
+    const card = this.findCardById(cardId);
+    if (!card) return null;
+
+    if (typeof updates.display_name === "string") {
+      card.display_name = updates.display_name;
+    }
+
+    if (updates.wallet_address !== undefined) {
+      card.wallet_address = updates.wallet_address;
+    }
+
+    card.updated_at = new Date().toISOString();
+    this.save();
+    return card;
+  }
+
+  /**
    * Appends an event, re-computes scores & counters chronologically, and persists changes.
    */
   public addEvent(eventData: Omit<TrustScoreEvent, "id" | "created_at" | "points_delta"> & { points_delta?: number; created_at?: string }): {
     event: TrustScoreEvent;
     card: AgentCard;
-    breakdown: any;
+    breakdown: ReturnType<typeof calculate_trust_score>["breakdown"];
   } {
     const card = this.findCardById(eventData.agent_card_id);
     if (!card) {
@@ -137,8 +160,7 @@ class IdentityDb {
     }
 
     const nowStr = new Date().toISOString();
-    
-    // Resolve points_delta dynamically if not specified
+
     let delta = eventData.points_delta;
     if (delta === undefined || delta === null) {
       delta = EVENT_POINTS_MAP[eventData.event_type] || 0;
@@ -151,10 +173,8 @@ class IdentityDb {
       created_at: eventData.created_at || nowStr,
     };
 
-    // Store event
     this.data.events.push(newEvent);
 
-    // Re-verify the updated scores and counters from history
     const response = this.recalculateCard(card.id);
     return {
       event: newEvent,
@@ -165,19 +185,14 @@ class IdentityDb {
 
   /**
    * Reproduces standard scoring state and aggregates stats/counters from event history.
-   * This guarantees total determinism and satisfy the constraint "Score must be reproducible from history".
    */
-  public recalculateCard(cardId: string): { card: AgentCard; breakdown: any } {
+  public recalculateCard(cardId: string): { card: AgentCard; breakdown: ReturnType<typeof calculate_trust_score>["breakdown"] } {
     const card = this.findCardById(cardId);
     if (!card) throw new Error(`AgentCard ${cardId} not found`);
 
-    // Fetch this card's events
     const cardEvents = this.data.events.filter(e => e.agent_card_id === cardId);
-
-    // Calculate score, rank and breakdown purely using the pure calculate_trust_score function
     const calculation = calculate_trust_score(card, cardEvents);
 
-    // Re-aggregate specific event counters sequentially
     let completed_missions = 0;
     let verified_actions = 0;
     let successful_agent_runs = 0;
@@ -186,7 +201,6 @@ class IdentityDb {
     let current_streak = 0;
     let longest_streak = 0;
 
-    // Chronological processing of counters
     const sortedEvents = [...cardEvents].sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
@@ -209,11 +223,8 @@ class IdentityDb {
           longest_streak = current_streak;
         }
       }
-      // TODO: Implement sophisticated sliding streak window calculation when needed in v2.
-      // Currently runs on sequential manual streak event ingestion as requested by the spec.
     }
 
-    // Update Card mutable metadata fields
     card.trust_score = calculation.score;
     card.operator_rank = calculation.rank;
     card.completed_missions = completed_missions;
@@ -229,7 +240,6 @@ class IdentityDb {
     }
 
     card.updated_at = new Date().toISOString();
-
     this.save();
 
     return {
@@ -239,5 +249,4 @@ class IdentityDb {
   }
 }
 
-// Singleton database instance
 export const identityDb = new IdentityDb();

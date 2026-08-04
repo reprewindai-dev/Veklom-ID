@@ -1,16 +1,14 @@
 import { Router, Request, Response } from "express";
-import { identityDb } from "./db";
-import { DEFAULT_SERVICE_TOKEN } from "./routes";
 import crypto from "crypto";
+import { identityDb } from "./db";
 
 const router = Router();
 
-// Merchant configurations based on User requirements
+const SESSION_COOKIE_NAME = "veklom_sid";
 const MERCHANT_WALLET = "0x3a74772e925b54F7dAD7FD95c9Ba30825033f970";
 const MERCHANT_DOMAIN = "veklomid.base.eth";
 const PRE_AUTHORIZED_NETWORKS = ["ZKSYNC", "UNICHAIN", "MONAD", "BASE"];
 
-// Simple in-memory ledger representing payments verified by this container
 interface PaymentRecord {
   txHash: string;
   network: string;
@@ -22,189 +20,14 @@ interface PaymentRecord {
 
 const paymentLedger: PaymentRecord[] = [];
 
-/**
- * GET /api/v1/x402/config
- * Exposes current merchant configuration
- */
-router.get("/config", (req: Request, res: Response) => {
-  return res.json({
-    success: true,
-    merchant_wallet: MERCHANT_WALLET,
-    merchant_domain: MERCHANT_DOMAIN,
-    supported_networks: PRE_AUTHORIZED_NETWORKS,
-    paypal_client_id: "sb-veklomid-pay-2026",
-    paypal_recipient_email: "shortformfactory.help@gmail.com"
-  });
-});
-
-/**
- * GET /api/v1/x402/premium-content
- * An endpoint requiring x402 Payment. 
- * If a valid X-402-Payment-Tx header is provided, returns HTTP 200 with data.
- * Otherwise, responds with HTTP 402 with the standard x402 response headers.
- */
-router.get("/premium-content", async (req: Request, res: Response) => {
-  const paymentTx = req.headers["x-402-payment-tx"] as string;
-  const paymentNetwork = (req.headers["x-402-payment-network"] as string || "").toUpperCase();
-  const activeOperatorId = req.headers["x-operator-card-id"] as string || "user_default_veklom_operator_node";
-
-  // If no payment transaction proof is provided, respond with 402 Payment Required
-  if (!paymentTx) {
-    res.setHeader("X-402-Accepts", PRE_AUTHORIZED_NETWORKS.join(", "));
-    res.setHeader("X-402-Address", MERCHANT_WALLET);
-    res.setHeader("X-402-Domain", MERCHANT_DOMAIN);
-    res.setHeader("X-402-Amount", "0.005");
-    res.setHeader("X-402-Token", "ETH");
-    res.setHeader("X-402-Description", "Premium Veklom Node Analytics & Weather Feeds");
-
-    return res.status(402).json({
-      error: "Payment Required",
-      message: "Access to this AI-Monetized API resource requires a cryptographic payment.",
-      spec: "https://x402.org",
-      payment_instructions: {
-        amount: "0.005 ETH",
-        networks: PRE_AUTHORIZED_NETWORKS,
-        payout_address: MERCHANT_WALLET,
-        domain_brand: MERCHANT_DOMAIN,
-        instruction_step: "Send 0.005 ETH/Native to payout address, then retry with 'X-402-Payment-Tx' header."
-      }
-    });
-  }
-
-  // Verify network
-  if (!PRE_AUTHORIZED_NETWORKS.includes(paymentNetwork)) {
-    return res.status(400).json({
-      error: "Unsupported Payment Network",
-      message: `Preferred networks are: ${PRE_AUTHORIZED_NETWORKS.join(", ")}. Provided: ${paymentNetwork}`
-    });
-  }
-
-  // Record payment in the simulated ledger
-  const isAlreadyProcessed = paymentLedger.some(p => p.txHash === paymentTx);
-  
-  if (!isAlreadyProcessed) {
-    paymentLedger.push({
-      txHash: paymentTx,
-      network: paymentNetwork,
-      amount: "0.005",
-      timestamp: new Date().toISOString(),
-      operatorCardId: activeOperatorId,
-      endpoint: "GET /premium-content"
-    });
-
-    // Auto-verify with the local Identity database to grant user points
-    const card = identityDb.findCardByUserId(activeOperatorId);
-    if (card) {
-      try {
-        identityDb.addEvent({
-          agent_card_id: card.id,
-          event_type: "x402_payment_verified",
-          points_delta: 10,
-          reason: `Verified x402 payment proof on ${paymentNetwork} network (Tx: ${paymentTx.substring(0, 10)}...)`,
-          evidence_hash: paymentTx,
-          policy_id: null,
-          mission_id: null,
-          run_id: null,
-          tx_hash: paymentTx,
-          created_at: new Date().toISOString()
-        });
-      } catch (err) {
-        console.error("Error updating score for x402 payment:", err);
-      }
-    }
-  }
-
-  // Return the premium data requested!
-  return res.json({
-    success: true,
-    auth_status: "Verified x402 Payment Secured",
-    tx_hash: paymentTx,
-    network: paymentNetwork,
-    amount_paid: "0.005 ETH",
-    settled_to: MERCHANT_WALLET,
-    resolved_domain: MERCHANT_DOMAIN,
-    data: {
-      location: "Hetzner Node Location Alpha (US-East)",
-      api_calls_remaining: 1000,
-      weather_index: {
-        temp: "19.5°C",
-        humidity: "42%",
-        entropy_load: "128 gwei",
-        block_consensus: "stable"
-      },
-      agent_permission_granted: true,
-      timestamp: new Date().toISOString()
-    }
-  });
-});
-
-/**
- * POST /api/v1/x402/paypal-settle
- * Process a simulated PayPal transaction for Veklom ID upgrade
- */
-router.post("/paypal-settle", (req: Request, res: Response) => {
-  try {
-    const { order_id, amount, currency, payer_email, activeOperatorId } = req.body;
-    
-    if (!order_id || !amount) {
-      return res.status(400).json({ error: "Missing PayPal purchase parameters." });
-    }
-
-    const opId = activeOperatorId || "user_default_veklom_operator_node";
-    const card = identityDb.findCardByUserId(opId);
-
-    if (card) {
-      identityDb.addEvent({
-        agent_card_id: card.id,
-        event_type: "verified_action",
-        points_delta: 15,
-        reason: `Processed Secure PayPal Gateway Settlement order #${order_id} for $${amount} USD (${payer_email})`,
-        evidence_hash: `paypal_${order_id}`,
-        policy_id: null,
-        mission_id: null,
-        run_id: null,
-        tx_hash: null,
-        created_at: new Date().toISOString()
-      });
-    }
-
-    return res.json({
-      success: true,
-      order_id,
-      payment_recipient: "shortformfactory.help@gmail.com",
-      merchant_address: MERCHANT_WALLET,
-      identity_upgraded: true,
-      points_added: 15,
-      timestamp: new Date().toISOString()
-    });
-  } catch (err: any) {
-    console.error("PayPal processing error:", err);
-    return res.status(500).json({ error: "Paypal processing failed on server." });
-  }
-});
-
-/**
- * GET /api/v1/x402/ledgers
- * View all live transactions compiled during this sandbox session
- */
-router.get("/ledgers", (req: Request, res: Response) => {
-  return res.json({
-    success: true,
-    count: paymentLedger.length,
-    payments: paymentLedger
-  });
-});
-
-// ====== COMPLIANT ORGANIC GROWTH AND INDEXING DIAGNOSTICS PLATFORM ======
-
 interface VerifiedMention {
   id: string;
-  target_domain: string; // The destination domain receiving traffic, e.g. backlink.com
-  source_authority: string; // Where the helpful resource/citation is published
-  domain_rating: number; // Quality Rating (QR) / Traffic Index, e.g. 50-100
-  anchor_text: string; // Helpful anchor phrase context
+  target_domain: string;
+  source_authority: string;
+  domain_rating: number;
+  anchor_text: string;
   type: "academic" | "public_record" | "editorial" | "directory" | "diagnostic";
-  claimed_by: string; // Operator node or verifying agent
+  claimed_by: string;
   amount_usd?: number;
   timestamp: string;
 }
@@ -242,10 +65,184 @@ const verifiedMentions: VerifiedMention[] = [
   }
 ];
 
-/**
- * GET /api/v1/x402/backlinks
- * Fetch all registered organic mentions and citation outcomes
- */
+function parseCookies(cookieHeader: string | undefined): Record<string, string> {
+  if (!cookieHeader) return {};
+  return cookieHeader.split(";").reduce<Record<string, string>>((acc, pair) => {
+    const [rawKey, ...rawValue] = pair.trim().split("=");
+    if (!rawKey) return acc;
+    acc[decodeURIComponent(rawKey)] = decodeURIComponent(rawValue.join("=") || "");
+    return acc;
+  }, {});
+}
+
+function getSessionUserId(req: Request, res: Response): string {
+  const cookies = parseCookies(req.headers.cookie);
+  const existing = cookies[SESSION_COOKIE_NAME];
+  if (existing) {
+    return existing;
+  }
+
+  const userId = `session_${crypto.randomUUID()}`;
+  res.setHeader("Set-Cookie", `${SESSION_COOKIE_NAME}=${encodeURIComponent(userId)}; HttpOnly; Path=/; SameSite=Lax; Max-Age=31536000`);
+  return userId;
+}
+
+function resolveSessionCard(req: Request, res: Response): ReturnType<typeof identityDb.findCardByUserId> {
+  const ownerUserId = getSessionUserId(req, res);
+  let card = identityDb.findCardByUserId(ownerUserId);
+  if (!card) {
+    card = identityDb.createDefaultCard(ownerUserId, "Operator Node Alpha");
+  }
+  return card;
+}
+
+router.get("/config", (req: Request, res: Response) => {
+  return res.json({
+    success: true,
+    merchant_wallet: MERCHANT_WALLET,
+    merchant_domain: MERCHANT_DOMAIN,
+    supported_networks: PRE_AUTHORIZED_NETWORKS,
+    paypal_client_id: "sb-veklomid-pay-2026",
+    paypal_recipient_email: "shortformfactory.help@gmail.com"
+  });
+});
+
+router.get("/premium-content", async (req: Request, res: Response) => {
+  const paymentTx = req.headers["x-402-payment-tx"] as string;
+  const paymentNetwork = (req.headers["x-402-payment-network"] as string || "").toUpperCase();
+  const activeOperatorId = getSessionUserId(req, res);
+
+  if (!paymentTx) {
+    res.setHeader("X-402-Accepts", PRE_AUTHORIZED_NETWORKS.join(", "));
+    res.setHeader("X-402-Address", MERCHANT_WALLET);
+    res.setHeader("X-402-Domain", MERCHANT_DOMAIN);
+    res.setHeader("X-402-Amount", "0.005");
+    res.setHeader("X-402-Token", "ETH");
+    res.setHeader("X-402-Description", "Premium Veklom Node Analytics & Weather Feeds");
+
+    return res.status(402).json({
+      error: "Payment Required",
+      message: "Access to this AI-Monetized API resource requires a cryptographic payment.",
+      spec: "https://x402.org",
+      payment_instructions: {
+        amount: "0.005 ETH",
+        networks: PRE_AUTHORIZED_NETWORKS,
+        payout_address: MERCHANT_WALLET,
+        domain_brand: MERCHANT_DOMAIN,
+        instruction_step: "Send 0.005 ETH/Native to payout address, then retry with 'X-402-Payment-Tx' header."
+      }
+    });
+  }
+
+  if (!PRE_AUTHORIZED_NETWORKS.includes(paymentNetwork)) {
+    return res.status(400).json({
+      error: "Unsupported Payment Network",
+      message: `Preferred networks are: ${PRE_AUTHORIZED_NETWORKS.join(", ")}. Provided: ${paymentNetwork}`
+    });
+  }
+
+  const isAlreadyProcessed = paymentLedger.some(p => p.txHash === paymentTx);
+
+  if (!isAlreadyProcessed) {
+    paymentLedger.push({
+      txHash: paymentTx,
+      network: paymentNetwork,
+      amount: "0.005",
+      timestamp: new Date().toISOString(),
+      operatorCardId: activeOperatorId,
+      endpoint: "GET /premium-content"
+    });
+
+    const card = identityDb.findCardByUserId(activeOperatorId);
+    if (card) {
+      try {
+        identityDb.addEvent({
+          agent_card_id: card.id,
+          event_type: "x402_payment_verified",
+          points_delta: 10,
+          reason: `Verified x402 payment proof on ${paymentNetwork} network (Tx: ${paymentTx.substring(0, 10)}...)`,
+          evidence_hash: paymentTx,
+          policy_id: null,
+          mission_id: null,
+          run_id: null,
+          tx_hash: paymentTx,
+          created_at: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error("Error updating score for x402 payment:", err);
+      }
+    }
+  }
+
+  return res.json({
+    success: true,
+    auth_status: "Verified x402 Payment Secured",
+    tx_hash: paymentTx,
+    network: paymentNetwork,
+    amount_paid: "0.005 ETH",
+    settled_to: MERCHANT_WALLET,
+    resolved_domain: MERCHANT_DOMAIN,
+    data: {
+      location: "Hetzner Node Location Alpha (US-East)",
+      api_calls_remaining: 1000,
+      weather_index: {
+        temp: "19.5°C",
+        humidity: "42%",
+        entropy_load: "128 gwei",
+        block_consensus: "stable"
+      },
+      agent_permission_granted: true,
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
+router.post("/paypal-settle", (req: Request, res: Response) => {
+  try {
+    const { order_id, amount, currency, payer_email } = req.body;
+
+    if (!order_id || !amount) {
+      return res.status(400).json({ error: "Missing PayPal purchase parameters." });
+    }
+
+    const card = resolveSessionCard(req, res);
+
+    identityDb.addEvent({
+      agent_card_id: card.id,
+      event_type: "verified_action",
+      points_delta: 15,
+      reason: `Processed Secure PayPal Gateway Settlement order #${order_id} for $${amount} USD (${payer_email})`,
+      evidence_hash: `paypal_${order_id}`,
+      policy_id: null,
+      mission_id: null,
+      run_id: null,
+      tx_hash: null,
+      created_at: new Date().toISOString()
+    });
+
+    return res.json({
+      success: true,
+      order_id,
+      payment_recipient: "shortformfactory.help@gmail.com",
+      merchant_address: MERCHANT_WALLET,
+      identity_upgraded: true,
+      points_added: 15,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err: any) {
+    console.error("PayPal processing error:", err);
+    return res.status(500).json({ error: "Paypal processing failed on server." });
+  }
+});
+
+router.get("/ledgers", (req: Request, res: Response) => {
+  return res.json({
+    success: true,
+    count: paymentLedger.length,
+    payments: paymentLedger
+  });
+});
+
 router.get("/backlinks", (req: Request, res: Response) => {
   return res.json({
     success: true,
@@ -254,15 +251,10 @@ router.get("/backlinks", (req: Request, res: Response) => {
   });
 });
 
-/**
- * POST /api/v1/x402/backlinks/claim
- * Log and verify a new content asset, helpful outreach citation, or tutorial link
- */
 router.post("/backlinks/claim", (req: Request, res: Response) => {
   try {
-    const { owner_user_id, target_domain, anchor_text } = req.body;
-    const opId = owner_user_id || "user_default_veklom_operator_node";
-    const card = identityDb.findCardByUserId(opId);
+    const { target_domain, anchor_text } = req.body;
+    const card = resolveSessionCard(req, res);
 
     const highQualityOutlets = [
       { url: "medium.com/engineering/open-web-protocols", dr: 82, type: "editorial" },
@@ -273,8 +265,8 @@ router.post("/backlinks/claim", (req: Request, res: Response) => {
     ];
 
     const randomOutlet = highQualityOutlets[Math.floor(Math.random() * highQualityOutlets.length)];
-    const newId = "bl-" + Math.random().toString(36).substr(2, 9);
-    
+    const newId = "bl-" + Math.random().toString(36).substring(2, 9);
+
     const citation: VerifiedMention = {
       id: newId,
       target_domain: target_domain || "backlink.com",
@@ -314,19 +306,13 @@ router.post("/backlinks/claim", (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /api/v1/x402/backlinks/chest
- * Provision a transparent, fixed-price content outreach pack, indexing diagnostic kit, or audit report
- */
 router.post("/backlinks/chest", (req: Request, res: Response) => {
   try {
-    const { owner_user_id, chest_type } = req.body;
-    const opId = owner_user_id || "user_default_veklom_operator_node";
-    const card = identityDb.findCardByUserId(opId);
+    const { chest_type } = req.body;
+    const card = resolveSessionCard(req, res);
 
     let price = 0;
     let points = 0;
-    let rankBoost = 0;
     let authority = "";
     let dr = 90;
     let finalPackName = chest_type;
@@ -351,7 +337,7 @@ router.post("/backlinks/chest", (req: Request, res: Response) => {
       authority = "forbes.com/business/open-directory-audit";
     }
 
-    const newId = "bl-" + Math.random().toString(36).substr(2, 9);
+    const newId = "bl-" + Math.random().toString(36).substring(2, 9);
     const citation: VerifiedMention = {
       id: newId,
       target_domain: "backlink.com",
@@ -392,15 +378,10 @@ router.post("/backlinks/chest", (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /api/v1/x402/backlinks/agent-submit
- * Autonomous crawler diagnostic submit.
- * Cognitive agents scan open documentation and indexation pathways to verify integrity, helping operators diagnose link coverage.
- */
 router.post("/backlinks/agent-submit", (req: Request, res: Response) => {
   try {
-    const { bot_name, backlink_reference_url, owner_user_id } = req.body;
-    
+    const { bot_name, backlink_reference_url } = req.body;
+
     if (!bot_name || !backlink_reference_url) {
       return res.status(400).json({
         error: "Missing fields",
@@ -408,8 +389,7 @@ router.post("/backlinks/agent-submit", (req: Request, res: Response) => {
       });
     }
 
-    const opId = owner_user_id || "user_default_veklom_operator_node";
-    const card = identityDb.findCardByUserId(opId);
+    const card = resolveSessionCard(req, res);
 
     const hasBacklink = backlink_reference_url.toLowerCase().includes("backlink.com");
     if (!hasBacklink) {
@@ -419,7 +399,7 @@ router.post("/backlinks/agent-submit", (req: Request, res: Response) => {
       });
     }
 
-    const newId = "bl-" + Math.random().toString(36).substr(2, 9);
+    const newId = "bl-" + Math.random().toString(36).substring(2, 9);
     const citation: VerifiedMention = {
       id: newId,
       target_domain: "backlink.com",
