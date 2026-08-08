@@ -15,7 +15,7 @@ export const EVENT_POINTS_MAP: Record<string, number> = {
 };
 
 export function getRankTier(score: number): string {
-  if (score < 100) return "Unranked";
+  if (score < 100) return "Unverified";
   if (score < 200) return "Recruit";
   if (score < 350) return "Operator";
   if (score < 500) return "Trusted Operator";
@@ -24,19 +24,14 @@ export function getRankTier(score: number): string {
   return "Apex";
 }
 
-/**
- * Pure function to calculate trust score based on agent card defaults and a history of events.
- * It sequentially applies points delta of each event to the starting score (100),
- * clamping the score between 0 and 1000 at each step.
- */
+/** Trust is earned from recorded events. New identities begin at zero. */
 export function calculate_trust_score(
-  agent_card: AgentCard | null,
+  _agent_card: AgentCard | null,
   events: TrustScoreEvent[]
 ): { score: number; rank: string; breakdown: TrustBreakdown } {
-  const STARTING_SCORE = 100;
+  const STARTING_SCORE = 0;
   let currentScore = STARTING_SCORE;
-  
-  // Sort events chronologically to ensure deterministic sequential calculation
+
   const sortedEvents = [...events].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
@@ -47,8 +42,6 @@ export function calculate_trust_score(
   for (const event of sortedEvents) {
     const rawDelta = event.points_delta;
     const initialScore = currentScore;
-    
-    // Check points calculation
     let newScore = currentScore + rawDelta;
     if (newScore > 1000) newScore = 1000;
     if (newScore < 0) newScore = 0;
@@ -67,7 +60,6 @@ export function calculate_trust_score(
   }
 
   const finalRank = getRankTier(currentScore);
-
   return {
     score: currentScore,
     rank: finalRank,
