@@ -41,8 +41,11 @@ async function startServer() {
     res.json({ status: "ok", service: "veklom-id", timestamp: new Date().toISOString() });
   });
 
-  // The acceptance suite is an operator function, not a public product endpoint.
+  // Operator-only surfaces never appear on the public identity API.
   app.all("/api/v1/identity/test-run", (_req, res) => res.status(404).json({ error: "not_found" }));
+  app.post("/api/v1/identity/events", (_req, res) =>
+    res.status(403).json({ error: "Trust-scoring events must be submitted by an authenticated internal service." })
+  );
 
   app.use("/api/v1/identity", identityRouter);
   app.use("/api/v1/internal/identity", internalAuth, identityRouter);
