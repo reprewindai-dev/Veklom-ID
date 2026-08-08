@@ -1,20 +1,51 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Veklom ID
 
-# Run and deploy your AI Studio app
+Veklom ID is the identity and trust layer for Veklom-operated products and machine clients.
 
-This contains everything you need to run your app locally.
+It provides a stable operator identity card, wallet linking, event-backed trust scoring, public-safe score lookup, internal service event ingestion, and x402-linked identity evidence.
 
-View your app in AI Studio: https://ai.studio/apps/67ef7b83-33b1-4f35-9745-4fac4c082330
+## What this service owns
 
-## Run Locally
+- Canonical operator identity cards
+- Wallet-to-identity linking
+- Trust-score events and score history
+- Public-safe identity lookup
+- Internal authenticated identity event ingestion
+- Identity-side x402 evidence hooks
 
-**Prerequisites:**  Node.js
+It does **not** own generic multi-agent simulation, application gameplay, or product-specific business logic.
 
+## API surface
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Public identity routes are mounted under:
+
+```text
+/api/v1/identity
+```
+
+Trusted service routes are mounted under:
+
+```text
+/api/v1/internal/identity
+```
+
+The internal mount requires `VEKLOM_INTERNAL_TOKEN` for privileged event submission and test operations.
+
+x402 identity integration is mounted under:
+
+```text
+/api/v1/x402
+```
+
+## Local development
+
+```bash
+npm install
+npm run dev
+```
+
+Required production configuration is supplied through deployment environment variables. Do not commit API keys, service tokens, wallet secrets, or deployment credentials to the repository.
+
+## Product principle
+
+A Veklom identity score must come from recorded, attributable events and verifiable evidence. Static demo scores, fabricated endorsements, or unverified payment claims must never be presented as production identity evidence.
