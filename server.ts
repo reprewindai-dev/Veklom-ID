@@ -7,6 +7,21 @@ import x402Router from "./src/identity/x402";
 
 dotenv.config();
 
+function internalAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const expected = process.env.VEKLOM_INTERNAL_TOKEN || "";
+  if (!expected) {
+    return res.status(503).json({ error: "internal_service_auth_not_configured" });
+  }
+
+  const headerToken = req.headers["x-internal-token"] || req.headers["x-service-token"];
+  const auth = req.headers.authorization || "";
+  const bearer = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : "";
+  if (headerToken !== expected && bearer !== expected) {
+    return res.status(403).json({ error: "forbidden" });
+  }
+  return next();
+}
+
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3014;
@@ -23,29 +38,23 @@ async function startServer() {
   });
 
   app.get("/health", (_req, res) => {
-    res.json({
-      status: "ok",
-      service: "veklom-id",
-      timestamp: new Date().toISOString(),
-    });
+    res.json({ status: "ok", service: "veklom-id", timestamp: new Date().toISOString() });
   });
 
+  // The acceptance suite is an operator function, not a public product endpoint.
+  app.all("/api/v1/identity/test-run", (_req, res) => res.status(404).json({ error: "not_found" }));
+
   app.use("/api/v1/identity", identityRouter);
-  app.use("/api/v1/internal/identity", identityRouter);
+  app.use("/api/v1/internal/identity", internalAuth, identityRouter);
   app.use("/api/v1/x402", x402Router);
 
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
+    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (_req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    app.get("*", (_req, res) => res.sendFile(path.join(distPath, "index.html")));
   }
 
   app.listen(PORT, "0.0.0.0", () => {
