@@ -1,33 +1,33 @@
 export interface AgentCard {
-  id: string; // uuid
+  id: string;
   owner_user_id: string;
   workspace_id: string;
   wallet_address: string | null;
   agent_id: string | null;
   display_name: string;
-  trust_score: number; // default: 100
-  operator_rank: string; // default: "Recruit"
-  current_streak: number; // default: 0
-  longest_streak: number; // default: 0
-  completed_missions: number; // default: 0
-  verified_actions: number; // default: 0
-  successful_agent_runs: number; // default: 0
-  policy_violations: number; // default: 0
-  governance_proofs_generated: number; // default: 0
-  last_score_event_at: string | null; // ISO string or null
+  trust_score: number; // starts at 0; earned from recorded events
+  operator_rank: string; // starts at "Unverified"
+  current_streak: number;
+  longest_streak: number;
+  completed_missions: number;
+  verified_actions: number;
+  successful_agent_runs: number;
+  policy_violations: number;
+  governance_proofs_generated: number;
+  last_score_event_at: string | null;
   last_attestation_tx: string | null;
-  score_version: number; // default: 1
+  score_version: number;
   created_at: string;
   updated_at: string;
 }
 
 export interface TrustScoreEvent {
-  id: string; // uuid
+  id: string;
   agent_card_id: string;
   event_type: string;
   points_delta: number;
   reason: string;
-  evidence_hash: string | null; // hex string
+  evidence_hash: string | null;
   policy_id: string | null;
   mission_id: string | null;
   run_id: string | null;
@@ -35,8 +35,8 @@ export interface TrustScoreEvent {
   created_at: string;
 }
 
-export type RankTier = 
-  | "Unranked"
+export type RankTier =
+  | "Unverified"
   | "Recruit"
   | "Operator"
   | "Trusted Operator"
